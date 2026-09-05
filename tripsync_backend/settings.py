@@ -102,13 +102,14 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.railway.app",
     "https://tripsync-frontend-sigma.vercel.app",
 ]
-
-# Gmail Real SMTP Configuration
+# Gmail Real SSL SMTP Configuration (Bypasses Cloud Port 587 block)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True
+EMAIL_USE_TLS = False
 EMAIL_HOST_USER = 'aayan20070806@gmail.com'
 EMAIL_HOST_PASSWORD = 'aaon ajrv nmny ybyj'
 DEFAULT_FROM_EMAIL = 'TripSync India <aayan20070806@gmail.com>'
+EMAIL_TIMEOUT = 10
 AUTH_USER_MODEL = 'api.User'
