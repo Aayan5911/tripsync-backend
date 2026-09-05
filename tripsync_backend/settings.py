@@ -115,3 +115,4 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'aayan20070806@gmail.com'
 EMAIL_HOST_PASSWORD = 'aaon ajrv nmny ybyj'
 DEFAULT_FROM_EMAIL = 'TripSync India <aayan20070806@gmail.com>'
+AUTH_USER_MODEL = 'api.User'
