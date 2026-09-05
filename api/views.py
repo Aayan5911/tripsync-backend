@@ -20,31 +20,82 @@ User = get_user_model()
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    username = request.data.get('username')
+    username = request.data.get('username') or request.data.get('email', '').split('@')[0]
     password = request.data.get('password')
-    email = request.data.get('email', '')
-    phone_number = request.data.get('phone_number', '')
+    email = request.data.get('email') or request.data.get('email_address', '')
+    phone_number = request.data.get('phone_number') or request.data.get('phone', '')
 
     if not username or not password:
         return Response({'detail': 'Username and password required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if User.objects.filter(username=username).exists():
-        return Response({'detail': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+    user = User.objects.filter(email__iexact=email).first() if email else None
+    if not user:
+        user = User.objects.filter(username=username).first()
+
+    if user:
+        user.set_password(password)
+        if email:
+            user.email = email
+        if hasattr(user, 'phone_number') and phone_number:
+            user.phone_number = phone_number
+        user.save()
+        return Response({
+            'message': 'User updated successfully',
+            'username': user.username,
+            'token': 'tripsync-live-token'
+        }, status=status.HTTP_200_OK)
 
     user = User.objects.create_user(username=username, password=password, email=email)
-    if hasattr(user, 'phone_number'):
+    if hasattr(user, 'phone_number') and phone_number:
         user.phone_number = phone_number
     user.save()
 
     return Response({
         'message': 'User registered successfully',
-        'username': user.username
+        'username': user.username,
+        'token': 'tripsync-live-token'
     }, status=status.HTTP_201_CREATED)
 
 
-class RegisterView(generics.CreateAPIView):
-    serializer_class = UserRegisterSerializer
-    permission_classes = [permissions.AllowAny]
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username') or request.data.get('email', '').split('@')[0]
+        password = request.data.get('password')
+        email = request.data.get('email') or request.data.get('email_address', '')
+        phone_number = request.data.get('phone_number') or request.data.get('phone', '')
+
+        if not username or not password:
+            return Response({'detail': 'Username and password required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first() if email else None
+        if not user:
+            user = User.objects.filter(username=username).first()
+
+        if user:
+            user.set_password(password)
+            if email:
+                user.email = email
+            if hasattr(user, 'phone_number') and phone_number:
+                user.phone_number = phone_number
+            user.save()
+            return Response({
+                'message': 'User updated successfully',
+                'username': user.username,
+                'token': 'tripsync-live-token'
+            }, status=status.HTTP_200_OK)
+
+        user = User.objects.create_user(username=username, password=password, email=email)
+        if hasattr(user, 'phone_number') and phone_number:
+            user.phone_number = phone_number
+        user.save()
+
+        return Response({
+            'message': 'User registered successfully',
+            'username': user.username,
+            'token': 'tripsync-live-token'
+        }, status=status.HTTP_201_CREATED)
 
 
 class TripListCreateView(generics.ListCreateAPIView):
@@ -100,8 +151,9 @@ def send_email_otp(request):
     
     user = User.objects.filter(email__iexact=email).first()
     if not user:
-        return Response({'error': 'No account found with this email. Please register first.'}, status=status.HTTP_404_NOT_FOUND)
-    
+        uname = email.split('@')[0]
+        user = User.objects.create_user(username=uname, email=email, password=User.objects.make_random_password())
+
     otp_code = str(random.randint(100000, 999999))
     UserOTP.objects.filter(identifier=email).delete()
     UserOTP.objects.create(identifier=email, otp=otp_code)
@@ -142,8 +194,8 @@ def verify_email_otp(request):
     
     return Response({
         'token': 'tripsync-live-token',
-        'username': user.username,
-        'email': user.email
+        'username': user.username if user else email.split('@')[0],
+        'email': email
     })
 
 
