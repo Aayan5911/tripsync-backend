@@ -152,7 +152,10 @@ def send_email_otp(request):
     user = User.objects.filter(email__iexact=email).first()
     if not user:
         uname = email.split('@')[0]
-        user = User.objects.create_user(username=uname, email=email, password=User.objects.make_random_password())
+        if User.objects.filter(username=uname).exists():
+            uname = f"{uname}_{random.randint(100, 999)}"
+        rand_pass = f"Pass@{random.randint(100000, 999999)}"
+        user = User.objects.create_user(username=uname, email=email, password=rand_pass)
 
     otp_code = str(random.randint(100000, 999999))
     UserOTP.objects.filter(identifier=email).delete()
