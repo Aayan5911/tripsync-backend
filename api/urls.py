@@ -14,23 +14,33 @@ from .views import (
 )
 
 urlpatterns = [
-    # Auth endpoints (matched with Frontend)
+    # Auth endpoints
     path('auth/register/', register_user, name='register'),
+    path('auth/register', register_user, name='register_noslash'),
     path('auth/login/', TokenObtainPairView.as_view(), name='login'),
+    path('auth/login', TokenObtainPairView.as_view(), name='login_noslash'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # Alternative routes
     path('register/', register_user, name='register_alt'),
+    path('register', register_user, name='register_alt_noslash'),
     path('login/', TokenObtainPairView.as_view(), name='login_alt'),
+    path('login', TokenObtainPairView.as_view(), name='login_alt_noslash'),
 
-    # Passwordless OTP endpoints
+    # Passwordless OTP endpoints (with and without slash)
     path('auth/send-email-otp/', send_email_otp, name='send_email_otp'),
+    path('auth/send-email-otp', send_email_otp, name='send_email_otp_noslash'),
     path('auth/verify-email-otp/', verify_email_otp, name='verify_email_otp'),
+    path('auth/verify-email-otp', verify_email_otp, name='verify_email_otp_noslash'),
+
     path('auth/send-phone-otp/', send_phone_otp, name='send_phone_otp'),
+    path('auth/send-phone-otp', send_phone_otp, name='send_phone_otp_noslash'),
     path('auth/verify-phone-otp/', verify_phone_otp, name='verify_phone_otp'),
+    path('auth/verify-phone-otp', verify_phone_otp, name='verify_phone_otp_noslash'),
 
     # TripSync features
     path('trips/', TripListCreateView.as_view(), name='trip_list_create'),
+    path('trips', TripListCreateView.as_view(), name='trip_list_create_noslash'),
     path('preferences/', MemberPreferenceCreateView.as_view(), name='preferences'),
     path('trips/<int:trip_id>/itinerary/', ItineraryGenerateView.as_view(), name='itinerary'),
     path('trips/<int:trip_id>/expenses/', ExpenseListCreateView.as_view(), name='expenses'),
