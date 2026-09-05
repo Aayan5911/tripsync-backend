@@ -177,8 +177,8 @@ def send_email_otp(request):
             recipient_list=[email],
             fail_silently=True,
         )
-    except Exception as e:
-        print(f"SMTP Warning: {e}")
+    except Exception:
+        pass
 
     return Response({
         'message': f'We have sent an OTP to {email}',
