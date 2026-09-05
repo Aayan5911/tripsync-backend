@@ -92,3 +92,11 @@ CSRF_TRUSTED_ORIGINS = [
     'https://web-production-79148.up.railway.app',
     'https://*.railway.app',
 ]
+# Gmail Real SMTP Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'aayan20070806@gmail.com'
+EMAIL_HOST_PASSWORD = 'aaon ajrv nmny ybyj'
+DEFAULT_FROM_EMAIL = 'TripSync India <aayan20070806@gmail.com>'
