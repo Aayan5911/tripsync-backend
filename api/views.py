@@ -7,11 +7,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import UserOTP, Trip, MemberPreference, Itinerary, Expense, Review
-from .serializers import (
-    UserSerializer, TripSerializer, MemberPreferenceSerializer,
-    ItinerarySerializer, ExpenseSerializer, ReviewSerializer
-)
+from .models import UserOTP
 
 # ----------------- AUTH VIEWS -----------------
 
@@ -148,12 +144,10 @@ def forgot_password_request(request):
     if not identifier:
         return Response({'error': 'Username or Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Lookup user by username or email
     user = User.objects.filter(username__iexact=identifier).first()
     if not user:
         user = User.objects.filter(email__iexact=identifier).first()
 
-    # Dynamic fallback: If user not found but valid email was provided, auto-create
     if not user:
         if "@" in identifier:
             uname = identifier.split('@')[0]
@@ -161,7 +155,7 @@ def forgot_password_request(request):
             user.email = identifier
             user.save()
         else:
-            return Response({'error': 'No account found. Please enter your email address.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'No account found. Please enter your registered email.'}, status=status.HTTP_404_NOT_FOUND)
 
     email = user.email.strip() if user.email else ""
     if not email and "@" in identifier:
@@ -170,7 +164,7 @@ def forgot_password_request(request):
         user.save()
 
     if not email:
-        return Response({'error': 'No email linked to this username. Please enter your email.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'No email linked. Enter your email address.'}, status=status.HTTP_400_BAD_REQUEST)
 
     otp_code = str(random.randint(100000, 999999))
     UserOTP.objects.filter(identifier=user.username).delete()
@@ -249,35 +243,3 @@ def reset_password_confirm(request):
         UserOTP.objects.filter(identifier=user.email).delete()
 
     return Response({'message': 'Password changed successfully! You can now log in.'}, status=status.HTTP_200_OK)
-
-
-# ----------------- APP CORE VIEWS -----------------
-
-class TripListCreateView(generics.ListCreateAPIView):
-    queryset = Trip.objects.all()
-    serializer_class = TripSerializer
-    permission_classes = [AllowAny]
-
-class MemberPreferenceCreateView(generics.CreateAPIView):
-    queryset = MemberPreference.objects.all()
-    serializer_class = MemberPreferenceSerializer
-    permission_classes = [AllowAny]
-
-class ItineraryGenerateView(generics.ListCreateAPIView):
-    serializer_class = ItinerarySerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        return Itinerary.objects.filter(trip_id=self.kwargs.get('trip_id'))
-
-class ExpenseListCreateView(generics.ListCreateAPIView):
-    serializer_class = ExpenseSerializer
-    permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        return Expense.objects.filter(trip_id=self.kwargs.get('trip_id'))
-
-class ReviewCreateView(generics.CreateAPIView):
-    queryset = Review.objects.all()
-    serializer_class = ReviewSerializer
-    permission_classes = [AllowAny]
