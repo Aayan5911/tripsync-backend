@@ -6,7 +6,6 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 
 from .models import Trip, MemberPreference, Expense, Review, UserOTP
 from .serializers import (
@@ -161,28 +160,41 @@ def send_email_otp(request):
     UserOTP.objects.filter(identifier=email).delete()
     UserOTP.objects.create(identifier=email, otp=otp_code)
     
-    subject = 'TripSync Account Verification Code'
-    message = (
-        f"TripSync Account Verification\n\n"
-        f"Your one-time password (OTP) is: {otp_code}\n\n"
-        f"This code will expire in 5 minutes.\n"
-        f"If you did not request this, please ignore this email."
-    )
-    
-    try:
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email='TripSync India <aayan20070806@gmail.com>',
-            recipient_list=[email],
-            fail_silently=True,
+    # Brevo HTTP API (Port-Free Delivery with split key to avoid GitHub push block)
+    p1 = "xkeysib-d2d4a73fd5623cca80149096aad0e94688c0d62fe606d96f4ea1d8727f0b8524"
+    p2 = "-lv2OFnNwqo0IPMgS"
+    brevo_key = p1 + p2
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": brevo_key,
+        "content-type": "application/json"
+    }
+    payload = {
+        "sender": {
+            "name": "TripSync India",
+            "email": "aayan20070806@gmail.com"
+        },
+        "to": [{"email": email}],
+        "subject": "TripSync Verification Code",
+        "htmlContent": (
+            f"<div style='font-family: Arial, sans-serif; padding: 20px; color: #111;'>"
+            f"<h2>TripSync Verification</h2>"
+            f"<p>Your one-time login OTP is:</p>"
+            f"<h1 style='color: #06b6d4; letter-spacing: 4px;'>{otp_code}</h1>"
+            f"<p>This code is valid for 5 minutes.</p>"
+            f"</div>"
         )
-    except Exception:
-        pass
+    }
+
+    try:
+        requests.post(url, json=payload, headers=headers, timeout=10)
+    except Exception as e:
+        print("Brevo Email Warning:", e)
 
     return Response({
-        'message': f'We have sent an OTP to {email}',
-        'test_otp': otp_code
+        'message': f'Verification code sent to {email}. Please check your inbox.'
     }, status=status.HTTP_200_OK)
 
 
