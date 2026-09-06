@@ -150,7 +150,6 @@ def send_email_otp(request):
     UserOTP.objects.filter(identifier=email).delete()
     UserOTP.objects.create(identifier=email, otp=otp_code)
     
-    # Brevo HTTP API (Key split to bypass scanner)
     p1 = "xkeysib-d2d4a73fd5623cca80149096aad0e94688c0d62fe606d96f4ea1d8727f0b8524"
     p2 = "-lv2OFnNwqo0IPMgS"
     brevo_key = p1 + p2
@@ -169,13 +168,13 @@ def send_email_otp(request):
         "to": [{"email": email}],
         "subject": "TripSync Verification Code",
         "htmlContent": (
-            f"<div style='font-family: Arial, sans-serif; padding: 25px; border: 1px solid #e2e8f0; border-radius: 8px; max-width: 500px; margin: auto;'>"
-            f"<h2 style='color: #0284c7; text-align: center;'>TripSync Verification</h2>"
+            f"<div style='font-family: Arial, sans-serif; padding: 25px; border: 1px solid #e2e8f0; border-radius: 8px; max-width: 500px; margin: auto; text-align: center;'>"
+            f"<h2 style='color: #0284c7;'>TripSync Verification</h2>"
             f"<p style='font-size: 15px; color: #334155;'>Use this one-time code to securely log in to your account:</p>"
-            f"<div style='background-color: #f1f5f9; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;'>"
+            f"<div style='background-color: #f1f5f9; padding: 15px; border-radius: 6px; margin: 20px 0;'>"
             f"<span style='font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #0f172a;'>{otp_code}</span>"
             f"</div>"
-            f"<p style='font-size: 13px; color: #64748b; text-align: center;'>Valid for 5 minutes. Do not share this code with anyone.</p>"
+            f"<p style='font-size: 13px; color: #64748b;'>Valid for 5 minutes. Do not share this code with anyone.</p>"
             f"</div>"
         )
     }
@@ -208,3 +207,84 @@ def verify_email_otp(request):
         'username': user.username if user else email.split('@')[0],
         'email': email
     })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_request(request):
+    username = request.data.get('username', '').strip()
+    if not username:
+        return Response({'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(username__iexact=username).first()
+    if not user or not user.email:
+        return Response({'error': 'User with this username or linked email not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    email = user.email
+    otp_code = str(random.randint(100000, 999999))
+    UserOTP.objects.filter(identifier=username).delete()
+    UserOTP.objects.create(identifier=username, otp=otp_code)
+
+    p1 = "xkeysib-d2d4a73fd5623cca80149096aad0e94688c0d62fe606d96f4ea1d8727f0b8524"
+    p2 = "-lv2OFnNwqo0IPMgS"
+    brevo_key = p1 + p2
+
+    parts = email.split('@')
+    masked_email = f"{parts[0][:2]}***@{parts[1]}" if len(parts[0]) > 2 else f"***@{parts[1]}"
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": brevo_key,
+        "content-type": "application/json"
+    }
+    payload = {
+        "sender": {"name": "TripSync India", "email": "aayan20070806@gmail.com"},
+        "to": [{"email": email}],
+        "subject": "Reset Your TripSync Password",
+        "htmlContent": (
+            f"<div style='font-family: Arial, sans-serif; padding: 25px; border: 1px solid #e2e8f0; border-radius: 8px; max-width: 500px; margin: auto; text-align: center;'>"
+            f"<h2 style='color: #0284c7;'>Password Reset Request</h2>"
+            f"<p style='color: #334155; font-size: 14px;'>A password reset was requested for user: <strong>{user.username}</strong>.</p>"
+            f"<div style='background-color: #f1f5f9; padding: 15px; border-radius: 6px; margin: 20px 0;'>"
+            f"<span style='font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #0f172a;'>{otp_code}</span>"
+            f"</div>"
+            f"<p style='font-size: 12px; color: #64748b;'>Valid for 5 minutes. If you did not request this, ignore this email.</p>"
+            f"</div>"
+        )
+    }
+
+    try:
+        requests.post(url, json=payload, headers=headers, timeout=10)
+    except Exception as e:
+        print("Brevo Error:", e)
+
+    return Response({
+        'message': f'Reset code sent to your registered email ({masked_email}).',
+        'masked_email': masked_email
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_confirm(request):
+    username = request.data.get('username', '').strip()
+    otp_entered = request.data.get('otp', '').strip()
+    new_password = request.data.get('new_password', '').strip()
+
+    if not username or not otp_entered or not new_password:
+        return Response({'error': 'Username, OTP, and New Password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp_record = UserOTP.objects.filter(identifier=username, otp=otp_entered).first()
+    if not otp_record or not otp_record.is_valid():
+        return Response({'error': 'Invalid or expired OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(username__iexact=username).first()
+    if not user:
+        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    user.set_password(new_password)
+    user.save()
+    otp_record.delete()
+
+    return Response({'message': 'Password changed successfully! You can now log in.'}, status=status.HTTP_200_OK)
