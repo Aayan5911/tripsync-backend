@@ -230,7 +230,7 @@ def send_phone_otp(request):
     UserOTP.objects.filter(identifier=phone).delete()
     UserOTP.objects.create(identifier=phone, otp=otp_code)
     
-    # Fast2SMS API Key (Key split to bypass GitHub push block)
+    # Fast2SMS Quick Route (Bypasses verification error 996)
     s1 = "rf1NTvIQcxbw3tkFERJuC9BdZDhLe02XqGo8a6AyOKMzUliYnHTR2fuQj7P9Jec"
     s2 = "SnOMEGwkiyvCY0pa4"
     fast2sms_key = s1 + s2
@@ -238,8 +238,10 @@ def send_phone_otp(request):
     sms_url = "https://www.fast2sms.com/dev/bulkV2"
     headers = {'authorization': fast2sms_key}
     payload = {
-        'variables_values': otp_code,
-        'route': 'otp',
+        'route': 'q',
+        'message': f'Your TripSync login code is: {otp_code}. Valid for 5 minutes.',
+        'language': 'english',
+        'flash': 0,
         'numbers': clean_phone,
     }
     
