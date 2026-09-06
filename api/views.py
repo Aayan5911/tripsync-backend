@@ -212,18 +212,34 @@ def verify_email_otp(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def forgot_password_request(request):
-    username = request.data.get('username', '').strip()
-    if not username:
-        return Response({'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
+    identifier = request.data.get('username', '').strip() or request.data.get('identifier', '').strip()
+    if not identifier:
+        return Response({'error': 'Username or Email is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    user = User.objects.filter(username__iexact=username).first()
-    if not user or not user.email:
-        return Response({'error': 'User with this username or linked email not found.'}, status=status.HTTP_404_NOT_FOUND)
+    # Search user by Username OR by Email
+    user = User.objects.filter(username__iexact=identifier).first()
+    if not user:
+        user = User.objects.filter(email__iexact=identifier).first()
 
-    email = user.email
+    if not user:
+        return Response({'error': 'User not found with this username or email.'}, status=status.HTTP_404_NOT_FOUND)
+
+    email = user.email.strip() if user.email else ""
+    if not email and "@" in identifier:
+        email = identifier
+        user.email = identifier
+        user.save()
+
+    if not email:
+        return Response({'error': 'No linked email found on this account.'}, status=status.HTTP_400_BAD_REQUEST)
+
     otp_code = str(random.randint(100000, 999999))
-    UserOTP.objects.filter(identifier=username).delete()
-    UserOTP.objects.create(identifier=username, otp=otp_code)
+    UserOTP.objects.filter(identifier=user.username).delete()
+    UserOTP.objects.filter(identifier=email).delete()
+    
+    # Store OTP against both identifiers for reliable validation
+    UserOTP.objects.create(identifier=user.username, otp=otp_code)
+    UserOTP.objects.create(identifier=email, otp=otp_code)
 
     p1 = "xkeysib-d2d4a73fd5623cca80149096aad0e94688c0d62fe606d96f4ea1d8727f0b8524"
     p2 = "-lv2OFnNwqo0IPMgS"
@@ -260,7 +276,7 @@ def forgot_password_request(request):
         print("Brevo Error:", e)
 
     return Response({
-        'message': f'Reset code sent to your registered email ({masked_email}).',
+        'message': f'Reset code sent to {masked_email}.',
         'masked_email': masked_email
     }, status=status.HTTP_200_OK)
 
@@ -268,23 +284,31 @@ def forgot_password_request(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password_confirm(request):
-    username = request.data.get('username', '').strip()
+    identifier = request.data.get('username', '').strip() or request.data.get('identifier', '').strip()
     otp_entered = request.data.get('otp', '').strip()
     new_password = request.data.get('new_password', '').strip()
 
-    if not username or not otp_entered or not new_password:
-        return Response({'error': 'Username, OTP, and New Password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not identifier or not otp_entered or not new_password:
+        return Response({'error': 'Username/Email, OTP, and New Password required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    otp_record = UserOTP.objects.filter(identifier=username, otp=otp_entered).first()
-    if not otp_record or not otp_record.is_valid():
-        return Response({'error': 'Invalid or expired OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
+    user = User.objects.filter(username__iexact=identifier).first()
+    if not user:
+        user = User.objects.filter(email__iexact=identifier).first()
 
-    user = User.objects.filter(username__iexact=username).first()
     if not user:
         return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    otp_record = UserOTP.objects.filter(identifier=user.username, otp=otp_entered).first()
+    if not otp_record and user.email:
+        otp_record = UserOTP.objects.filter(identifier=user.email, otp=otp_entered).first()
+
+    if not otp_record or not otp_record.is_valid():
+        return Response({'error': 'Invalid or expired OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
+
     user.set_password(new_password)
     user.save()
-    otp_record.delete()
+    UserOTP.objects.filter(identifier=user.username).delete()
+    if user.email:
+        UserOTP.objects.filter(identifier=user.email).delete()
 
     return Response({'message': 'Password changed successfully! You can now log in.'}, status=status.HTTP_200_OK)
