@@ -1,6 +1,6 @@
 import random
 import requests
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import UserOTP
+
+User = get_user_model()
 
 # ----------------- AUTH VIEWS -----------------
 
@@ -71,8 +73,13 @@ def send_email_otp(request):
     UserOTP.objects.create(identifier=email, otp=otp_code)
 
     uname = email.split('@')[0]
-    user, _ = User.objects.get_or_create(username=uname, defaults={'email': email})
-    if not user.email:
+    user = User.objects.filter(email__iexact=email).first()
+    if not user:
+        user = User.objects.filter(username__iexact=uname).first()
+    
+    if not user:
+        user = User.objects.create_user(username=uname, email=email)
+    elif not user.email:
         user.email = email
         user.save()
 
@@ -123,10 +130,12 @@ def verify_email_otp(request):
     if not record or not record.is_valid():
         return Response({'error': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    uname = email.split('@')[0]
-    user, _ = User.objects.get_or_create(username=uname, defaults={'email': email})
-    record.delete()
+    user = User.objects.filter(email__iexact=email).first()
+    if not user:
+        uname = email.split('@')[0]
+        user = User.objects.create_user(username=uname, email=email)
 
+    record.delete()
     refresh = RefreshToken.for_user(user)
     return Response({
         'token': str(refresh.access_token),
@@ -151,9 +160,7 @@ def forgot_password_request(request):
     if not user:
         if "@" in identifier:
             uname = identifier.split('@')[0]
-            user, _ = User.objects.get_or_create(username=uname, defaults={'email': identifier})
-            user.email = identifier
-            user.save()
+            user = User.objects.create_user(username=uname, email=identifier)
         else:
             return Response({'error': 'No account found. Please enter your registered email.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -164,7 +171,7 @@ def forgot_password_request(request):
         user.save()
 
     if not email:
-        return Response({'error': 'No email linked. Enter your email address.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'No email linked to this account.'}, status=status.HTTP_400_BAD_REQUEST)
 
     otp_code = str(random.randint(100000, 999999))
     UserOTP.objects.filter(identifier=user.username).delete()
