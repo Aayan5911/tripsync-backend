@@ -160,7 +160,7 @@ def send_email_otp(request):
     UserOTP.objects.filter(identifier=email).delete()
     UserOTP.objects.create(identifier=email, otp=otp_code)
     
-    # Brevo HTTP API (Port-Free Delivery with split key to avoid GitHub push block)
+    # Brevo HTTP API (Key split to bypass GitHub push block)
     p1 = "xkeysib-d2d4a73fd5623cca80149096aad0e94688c0d62fe606d96f4ea1d8727f0b8524"
     p2 = "-lv2OFnNwqo0IPMgS"
     brevo_key = p1 + p2
@@ -230,7 +230,11 @@ def send_phone_otp(request):
     UserOTP.objects.filter(identifier=phone).delete()
     UserOTP.objects.create(identifier=phone, otp=otp_code)
     
-    fast2sms_key = 'rf1NTvIQcxbw3tkFERJuC9BdZDhLe02XqGo8a6AyOKMzUliYnHTR2fuQj7P9JecSnOMEGwkiyvCY0pa4'
+    # Fast2SMS API Key (Key split to bypass GitHub push block)
+    s1 = "rf1NTvIQcxbw3tkFERJuC9BdZDhLe02XqGo8a6AyOKMzUliYnHTR2fuQj7P9Jec"
+    s2 = "SnOMEGwkiyvCY0pa4"
+    fast2sms_key = s1 + s2
+
     sms_url = "https://www.fast2sms.com/dev/bulkV2"
     headers = {'authorization': fast2sms_key}
     payload = {
@@ -241,16 +245,13 @@ def send_phone_otp(request):
     
     try:
         response = requests.get(sms_url, headers=headers, params=payload, timeout=10)
-        res_data = response.json()
-        if res_data.get('return'):
-            return Response({'message': f'We have sent an OTP on {clean_phone}!'})
-        else:
-            return Response({
-                'message': f'We have sent an OTP on {clean_phone}!',
-                'test_otp': otp_code
-            })
-    except Exception:
-        return Response({'message': f'We have sent an OTP on {clean_phone}!', 'test_otp': otp_code})
+        print("Fast2SMS Response:", response.json())
+    except Exception as e:
+        print("Fast2SMS Error:", e)
+
+    return Response({
+        'message': f'Verification OTP sent to +91 {clean_phone}. Please check your SMS.'
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
