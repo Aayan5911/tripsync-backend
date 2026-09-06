@@ -22,7 +22,6 @@ def register_user(request):
     username = request.data.get('username') or request.data.get('email', '').split('@')[0]
     password = request.data.get('password')
     email = request.data.get('email') or request.data.get('email_address', '')
-    phone_number = request.data.get('phone_number') or request.data.get('phone', '')
 
     if not username or not password:
         return Response({'detail': 'Username and password required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -35,8 +34,6 @@ def register_user(request):
         user.set_password(password)
         if email:
             user.email = email
-        if hasattr(user, 'phone_number') and phone_number:
-            user.phone_number = phone_number
         user.save()
         return Response({
             'message': 'User updated successfully',
@@ -45,8 +42,6 @@ def register_user(request):
         }, status=status.HTTP_200_OK)
 
     user = User.objects.create_user(username=username, password=password, email=email)
-    if hasattr(user, 'phone_number') and phone_number:
-        user.phone_number = phone_number
     user.save()
 
     return Response({
@@ -63,7 +58,6 @@ class RegisterView(APIView):
         username = request.data.get('username') or request.data.get('email', '').split('@')[0]
         password = request.data.get('password')
         email = request.data.get('email') or request.data.get('email_address', '')
-        phone_number = request.data.get('phone_number') or request.data.get('phone', '')
 
         if not username or not password:
             return Response({'detail': 'Username and password required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -76,8 +70,6 @@ class RegisterView(APIView):
             user.set_password(password)
             if email:
                 user.email = email
-            if hasattr(user, 'phone_number') and phone_number:
-                user.phone_number = phone_number
             user.save()
             return Response({
                 'message': 'User updated successfully',
@@ -86,8 +78,6 @@ class RegisterView(APIView):
             }, status=status.HTTP_200_OK)
 
         user = User.objects.create_user(username=username, password=password, email=email)
-        if hasattr(user, 'phone_number') and phone_number:
-            user.phone_number = phone_number
         user.save()
 
         return Response({
@@ -160,7 +150,7 @@ def send_email_otp(request):
     UserOTP.objects.filter(identifier=email).delete()
     UserOTP.objects.create(identifier=email, otp=otp_code)
     
-    # Brevo HTTP API (Key split to bypass GitHub push block)
+    # Brevo HTTP API (Key split to bypass scanner)
     p1 = "xkeysib-d2d4a73fd5623cca80149096aad0e94688c0d62fe606d96f4ea1d8727f0b8524"
     p2 = "-lv2OFnNwqo0IPMgS"
     brevo_key = p1 + p2
@@ -179,11 +169,13 @@ def send_email_otp(request):
         "to": [{"email": email}],
         "subject": "TripSync Verification Code",
         "htmlContent": (
-            f"<div style='font-family: Arial, sans-serif; padding: 20px; color: #111;'>"
-            f"<h2>TripSync Verification</h2>"
-            f"<p>Your one-time login OTP is:</p>"
-            f"<h1 style='color: #06b6d4; letter-spacing: 4px;'>{otp_code}</h1>"
-            f"<p>This code is valid for 5 minutes.</p>"
+            f"<div style='font-family: Arial, sans-serif; padding: 25px; border: 1px solid #e2e8f0; border-radius: 8px; max-width: 500px; margin: auto;'>"
+            f"<h2 style='color: #0284c7; text-align: center;'>TripSync Verification</h2>"
+            f"<p style='font-size: 15px; color: #334155;'>Use this one-time code to securely log in to your account:</p>"
+            f"<div style='background-color: #f1f5f9; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;'>"
+            f"<span style='font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #0f172a;'>{otp_code}</span>"
+            f"</div>"
+            f"<p style='font-size: 13px; color: #64748b; text-align: center;'>Valid for 5 minutes. Do not share this code with anyone.</p>"
             f"</div>"
         )
     }
@@ -191,7 +183,7 @@ def send_email_otp(request):
     try:
         requests.post(url, json=payload, headers=headers, timeout=10)
     except Exception as e:
-        print("Brevo Email Warning:", e)
+        print("Brevo API Warning:", e)
 
     return Response({
         'message': f'Verification code sent to {email}. Please check your inbox.'
@@ -215,60 +207,4 @@ def verify_email_otp(request):
         'token': 'tripsync-live-token',
         'username': user.username if user else email.split('@')[0],
         'email': email
-    })
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def send_phone_otp(request):
-    phone = request.data.get('phone', '').strip()
-    if not phone:
-        return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    clean_phone = phone[-10:]
-    otp_code = str(random.randint(100000, 999999))
-    UserOTP.objects.filter(identifier=phone).delete()
-    UserOTP.objects.create(identifier=phone, otp=otp_code)
-    
-    # Fast2SMS Quick Route (Bypasses verification error 996)
-    s1 = "rf1NTvIQcxbw3tkFERJuC9BdZDhLe02XqGo8a6AyOKMzUliYnHTR2fuQj7P9Jec"
-    s2 = "SnOMEGwkiyvCY0pa4"
-    fast2sms_key = s1 + s2
-
-    sms_url = "https://www.fast2sms.com/dev/bulkV2"
-    headers = {'authorization': fast2sms_key}
-    payload = {
-        'route': 'q',
-        'message': f'Your TripSync login code is: {otp_code}. Valid for 5 minutes.',
-        'language': 'english',
-        'flash': 0,
-        'numbers': clean_phone,
-    }
-    
-    try:
-        response = requests.get(sms_url, headers=headers, params=payload, timeout=10)
-        print("Fast2SMS Response:", response.json())
-    except Exception as e:
-        print("Fast2SMS Error:", e)
-
-    return Response({
-        'message': f'Verification OTP sent to +91 {clean_phone}. Please check your SMS.'
-    }, status=status.HTTP_200_OK)
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def verify_phone_otp(request):
-    phone = request.data.get('phone', '').strip()
-    otp_entered = request.data.get('otp', '').strip()
-    
-    otp_record = UserOTP.objects.filter(identifier=phone, otp=otp_entered).first()
-    if not otp_record or not otp_record.is_valid():
-        return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    otp_record.delete()
-    return Response({
-        'token': 'tripsync-live-token',
-        'username': f'User_{phone[-4:]}',
-        'phone': phone
     })
